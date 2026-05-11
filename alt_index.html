@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>UK 90 Ball Bingo Caller</title>
+
+<style>
+    * {
+        box-sizing: border-box;
+    }
+
+    body {
+        margin: 0;
+        font-family: Arial, Helvetica, sans-serif;
+        background: #111;
+        color: white;
+        overflow-x: hidden;
+    }
+
+    .topbar {
+        background: #1e1e1e;
+        padding: 15px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+        justify-content: center;
+        border-bottom: 2px solid #333;
+    }
+
+    button, select, input, textarea {
+        padding: 10px;
+        border-radius: 8px;
+        border: none;
+        font-size: 16px;
+    }
+
+    button {
+        cursor: pointer;
+        font-weight: bold;
+    }
+
+    .call-btn {
+        background: #00c853;
+        color: white;
+    }
+
+    .reset-btn {
+        background: #d50000;
+        color: white;
+    }
+
+    .speak-btn {
+        background: #2962ff;
+        color: white;
+    }
+
+    .main-number {
+        height: 45vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        background: #000;
+        border-bottom: 4px solid #333;
+    }
+
+    .number {
+        font-size: 12vw;
+        font-weight: bold;
+        line-height: 1;
+    }
+
+    .phrase {
+        font-size: 2vw;
+        margin-top: 10px;
+        color: #ffd54f;
+        text-align: center;
+        padding: 0 20px;
+    }
+
+    .stats {
+        text-align: center;
+        padding: 15px;
+        font-size: 1.3rem;
+        background: #181818;
+    }
+
+    .called-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+        gap: 10px;
+        padding: 20px;
+    }
+
+    .ball {
+        background: #222;
+        border: 2px solid #444;
+        border-radius: 12px;
+        padding: 15px 5px;
+        text-align: center;
+        font-size: 1.4rem;
+        font-weight: bold;
+    }
+
+    .ball.called {
+        background: #00c853;
+        color: black;
+        border-color: #00ff84;
+    }
+
+    .editor {
+        padding: 20px;
+        background: #101010;
+        border-top: 2px solid #333;
+    }
+
+    .editor h2 {
+        margin-top: 0;
+    }
+
+    .editor-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+        gap: 12px;
+    }
+
+    .editor-item {
+        background: #1c1c1c;
+        padding: 10px;
+        border-radius: 10px;
+    }
+
+    .editor-item label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: bold;
+    }
+
+    .editor-item input {
+        width: 100%;
+    }
+
+    @media (max-width: 768px) {
+        .number {
+            font-size: 25vw;
+        }
+
+        .phrase {
+            font-size: 5vw;
+        }
+    }
+</style>
+</head>
+<body>
+
+<div class="main-number">
+    <div class="number" id="currentNumber">--</div>
+    <div class="phrase" id="currentPhrase">Press CALL NEXT NUMBER to begin</div>
+</div>
+
+<div class="topbar">
+    <button class="call-btn" onclick="callNextNumber()">CALL NEXT NUMBER</button>
+    <button class="speak-btn" onclick="repeatLast()">REPEAT</button>
+    <button class="reset-btn" onclick="resetGame()">RESET</button>
+
+    <select id="voiceSelect"></select>
+
+    <label>
+        Speed
+        <input type="range" min="0.5" max="1.5" step="0.1" value="1" id="rate">
+    </label>
+</div>
+
+<div class="stats">
+    Numbers Called: <span id="count">0</span> / 90
+</div>
+
+<div class="called-grid" id="calledGrid"></div>
+
+<div class="editor">
+    <h2>Custom Call Phrases</h2>
+    <p>Edit what is spoken for each number.</p>
+
+    <div class="editor-grid" id="editorGrid"></div>
+</div>
+
+<script>
+    let remainingNumbers = [];
+    let calledNumbers = [];
+    let voices = [];
+
+    const customPhrases = {};
+
+    // Default UK bingo calls
+    const defaults = {
+        1: "Touch my bum, number one",
+        2: "Dreaming of you, number two",
+        3: "Come kiss me, number three",
+        4: "Lets go hardcore, number four",
+        5: "Don’t tell my wife, number five",
+        6: "Send naughty pics, number six",
+        7: "Sexual heaven, number seven",
+        8: "Not on the first date, number eight",
+        9: "Your place or mine, number nine",
+        10: "Let’s go again, number ten",
+        
+        11: "Touch my bum, number one",
+        12: "Dreaming of you, number two",
+        13: "Come kiss me, number three",
+        14: "Lets go hardcore, number four",
+        15: "Don’t tell my wife, number five",
+        16: "Send naughty pics, number six",
+        17: "Sexual heaven, number seven",
+        18: "Not on the first date, number eight",
+        19: "Your place or mine, number nine",
+        20: "Let’s go again, number ten"
+        
+    };
+
+    function initGame() {
+        remainingNumbers = [];
+        calledNumbers = [];
+
+        for (let i = 1; i <= 90; i++) {
+            remainingNumbers.push(i);
+
+            if (!customPhrases[i]) {
+                customPhrases[i] = defaults[i] || `Number ${i}`;
+            }
+        }
+
+        renderBoard();
+        renderEditor();
+
+        document.getElementById("currentNumber").textContent = "--";
+        document.getElementById("currentPhrase").textContent = "Press CALL NEXT NUMBER to begin";
+        document.getElementById("count").textContent = "0";
+    }
+
+    function shuffle(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i], array[j]] = [array[j], array[i]];
+        }
+    }
+
+    function callNextNumber() {
+        if (remainingNumbers.length === 0) {
+            alert("All numbers have been called!");
+            return;
+        }
+
+        shuffle(remainingNumbers);
+
+        const number = remainingNumbers.pop();
+        calledNumbers.push(number);
+
+        const phrase = customPhrases[number];
+
+        document.getElementById("currentNumber").textContent = number;
+        document.getElementById("currentPhrase").textContent = phrase;
+        document.getElementById("count").textContent = calledNumbers.length;
+
+        renderBoard();
+        speak(phrase);
+    }
+
+    function renderBoard() {
+        const grid = document.getElementById("calledGrid");
+        grid.innerHTML = "";
+
+        for (let i = 1; i <= 90; i++) {
+            const div = document.createElement("div");
+            div.className = "ball";
+
+            if (calledNumbers.includes(i)) {
+                div.classList.add("called");
+            }
+
+            div.textContent = i;
+            grid.appendChild(div);
+        }
+    }
+
+    function renderEditor() {
+        const editor = document.getElementById("editorGrid");
+        editor.innerHTML = "";
+
+        for (let i = 1; i <= 90; i++) {
+            const item = document.createElement("div");
+            item.className = "editor-item";
+
+            item.innerHTML = `
+                <label>${i}</label>
+                <input 
+                    type="text" 
+                    value="${customPhrases[i]}" 
+                    onchange="updatePhrase(${i}, this.value)"
+                />
+            `;
+
+            editor.appendChild(item);
+        }
+    }
+
+    function updatePhrase(number, value) {
+        customPhrases[number] = value;
+    }
+
+    function speak(text) {
+        speechSynthesis.cancel();
+
+        const utterance = new SpeechSynthesisUtterance(text);
+
+        const selectedVoice = document.getElementById("voiceSelect").value;
+        const voice = voices.find(v => v.name === selectedVoice);
+
+        if (voice) {
+            utterance.voice = voice;
+        }
+
+        utterance.rate = parseFloat(document.getElementById("rate").value);
+
+        speechSynthesis.speak(utterance);
+    }
+
+    function repeatLast() {
+        if (calledNumbers.length === 0) return;
+
+        const last = calledNumbers[calledNumbers.length - 1];
+        speak(customPhrases[last]);
+    }
+
+    function resetGame() {
+        if (confirm("Reset the game?")) {
+            initGame();
+        }
+    }
+
+    function loadVoices() {
+        voices = speechSynthesis.getVoices();
+
+        const select = document.getElementById("voiceSelect");
+        select.innerHTML = "";
+
+        const englishVoices = voices.filter(v =>
+            v.lang.includes("en")
+        );
+
+        englishVoices.forEach(v => {
+            const option = document.createElement("option");
+            option.value = v.name;
+            option.textContent = `${v.name} (${v.lang})`;
+            select.appendChild(option);
+        });
+
+        // Prefer UK voices if available
+        const ukVoice = englishVoices.find(v =>
+            v.lang === "en-GB"
+        );
+
+        if (ukVoice) {
+            select.value = ukVoice.name;
+        }
+    }
+
+    speechSynthesis.onvoiceschanged = loadVoices;
+
+    initGame();
+    loadVoices();
+</script>
+
+</body>
+</html>
