@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>UK 90 Ball Bingo Caller</title>
+
+<style>
+    * {
+        box-sizing: border-box;
+    }
+
+    body {
+        margin: 0;
+        font-family: Arial, Helvetica, sans-serif;
+        background: #111;
+        color: white;
+        overflow-x: hidden;
+    }
+
+    .topbar {
+        background: #1e1e1e;
+        padding: 15px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+        justify-content: center;
+        border-bottom: 2px solid #333;
+    }
+
+    button, select, input, textarea {
+        padding: 10px;
+        border-radius: 8px;
+        border: none;
+        font-size: 16px;
+    }
+
+    button {
+        cursor: pointer;
+        font-weight: bold;
+    }
+
+    .call-btn {
+        background: #00c853;
+        color: white;
+    }
+
+    .reset-btn {
+        background: #d50000;
+        color: white;
+    }
+
+    .speak-btn {
+        background: #2962ff;
+        color: white;
+    }
+
+    .main-number {
+        height: 45vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        background: #000;
+        border-bottom: 4px solid #333;
+    }
+
+    .number {
+        font-size: 12vw;
+        font-weight: bold;
+        line-height: 1;
+    }
+
+    .phrase {
+        font-size: 2vw;
+        margin-top: 10px;
+        color: #ffd54f;
+        text-align: center;
+        padding: 0 20px;
+    }
+
+    .stats {
+        text-align: center;
+        padding: 15px;
+        font-size: 1.3rem;
+        background: #181818;
+    }
+
+    .called-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+        gap: 10px;
+        padding: 20px;
+    }
+
+    .ball {
+        background: #222;
+        border: 2px solid #444;
+        border-radius: 12px;
+        padding: 15px 5px;
+        text-align: center;
+        font-size: 1.4rem;
+        font-weight: bold;
+    }
+
+    .ball.called {
+        background: #00c853;
+        color: black;
+        border-color: #00ff84;
+    }
+
+    .editor {
+        padding: 20px;
+        background: #101010;
+        border-top: 2px solid #333;
+    }
+
+    .editor h2 {
+        margin-top: 0;
+    }
+
+    .editor-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+        gap: 12px;
+    }
+
+    .editor-item {
+        background: #1c1c1c;
+        padding: 10px;
+        border-radius: 10px;
+    }
+
+    .editor-item label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: bold;
+    }
+
+    .editor-item input {
+        width: 100%;
+    }
+
+    @media (max-width: 768px) {
+        .number {
+            font-size: 25vw;
+        }
+
+        .phrase {
+            font-size: 5vw;
+        }
+    }
+</style>
+</head>
+<body>
+
+<div class="main-number">
+    <div class="number" id="currentNumber">--</div>
+    <div class="phrase" id="currentPhrase">Press CALL NEXT NUMBER to begin</div>
+</div>
+
+<div class="topbar">
+    <button class="call-btn" onclick="callNextNumber()">CALL NEXT NUMBER</button>
+    <button class="speak-btn" onclick="repeatLast()">REPEAT</button>
+    <button class="reset-btn" onclick="resetGame()">RESET</button>
+
+    <select id="voiceSelect"></select>
+
+    <label>
+        Speed
+        <input type="range" min="0.5" max="1.5" step="0.1" value="1" id="rate">
+    </label>
+</div>
+
+<div class="stats">
+    Numbers Called: <span id="count">0</span> / 90
+</div>
+
+<div class="called-grid" id="calledGrid"></div>
+
+<div class="editor">
+    <h2>Custom Call Phrases</h2>
+    <p>Edit what is spoken for each number.</p>
+
+    <div class="editor-grid" id="editorGrid"></div>
+</div>
+
+<script>
+    let remainingNumbers = [];
+    let calledNumbers = [];
+    let voices = [];
+
+    const customPhrases = {};
+
+    // Default UK bingo calls
+    const defaults = {
+
+        1: "On its own, one",
+        2: "On its own, two",
+        3: "On its own, three",
+        4: "On its own, four",
+        5: "On its own, five",
+        6: "On its own, six",
+        7: "On its own, seven",
+        8: "On its own, eight",
+        9: "On its own, nine",
+        10: "one and zero, ten",
+
+        11: "one and one, eleven",
+        12: "One and two, twelve",
+        13: "One and Three, thirteen",
+        14: "One and four, fourteen",
+        15: "One and five, fifteen",
+        16: "One and six, sixteen",
+        17: "One amd seven, seventeen",
+        18: "One amd eight, eighteen",
+        19: "One amd nine, nineteen",
+        20: "Two and zero, twenty",
+
+        21: "Two and one, twenty one",
+        22: "Two and two, twenty two",
+        23: "Two and three, twenty three",
+        24: "Two and four, twenty four",
+        25: "Two and five, twenty five",
+        26: "Two and six, twenty six",
+        27: "Two and seven, twenty seven",
+        28: "Two and eight, twenty eight",
+        29: "Two and nine, twenty nine",
+        30: "Three and zero, thirty",
+
+        31: "Three and one, thirty one",
+        32: "Three and two, thirty two",
+        33: "Three and three, thirty three",
+        34: "Three and four, thirty four",
+        35: "Three and five, thirty five",
+        36: "Three and six, thirty six",
+        37: "Three and seven, thirty seven",
+        38: "Three and eight, thirty eight",
+        39: "Three and nine, thirty nine",
+        40: "Four and zero, forty",
+
+        41: "Four and one, forty one",
+        42: "Four and two, forty two",
+        43: "Four and three, forty three",
+        44: "Four and four, forty four",
+        45: "Four and five, forty five",
+        46: "Four and six, forty six",
+        47: "Four and seven, forty seven",
+        48: "Four and eight, forty eight",
+        49: "Four and nine, forty nine",
+        50: "Five and zero, fifty",
+
+        51: "Five and one, fifty one",
+        52: "Five and two, fifty two",
+        53: "Five and three, fifty three",
+        54: "Five and four, fifty four",
+        55: "Five and five, fifty five",
+        56: "Five and six, fifty six",
+        57: "Five and seven, fifty seven",
+        58: "Five and eight, fifty eight",
+        59: "Five and nine, fifty nine",
+        60: "Six and zero, sixty",
+
+        61: "Six and one, sixty one",
+        62: "Six and two, sixty two",
+        63: "Six and three, sixty three",
+        64: "Six and four, sixty four",
+        65: "Six and five, sixty five",
+        66: "Six and six, sixty six",
+        67: "Six and seven, sixty seven",
+        68: "Six and eight, sixty eight",
+        69: "Six and nine, sixty nine",
+        70: "Seven and zero, seventy",
+
+        71: "Seven and one, seventy one",
+        72: "Seven and two, seventy two",
+        73: "Seven and three, seventy three",
+        74: "Seven and four, seventy four",
+        75: "Seven and five, seventy five",
+        76: "Seven and six, seventy six",
+        77: "Seven and seven, seventy seven",
+        78: "Seven and eight, seventy eight",
+        79: "Seven and nine, seventy nine",
+        80: "Eight and zero, eighty",
+
+        81: "Eight and one, eighty one",
+        82: "Eight and two, eighty two",
+        83: "Eight and three, eighty three",
+        84: "Eight and four, eighty four",
+        85: "Eight and five, eighty five",
+        86: "Eight and six, eighty six",
+        87: "Eight and seven, eighty seven",
+        88: "Eight and eight, eighty eight",
+        89: "Eight and nine, eighty nine",
+        90: "Nine and zero, ninety"
+
+    };
+
+    function initGame() {
+        remainingNumbers = [];
+        calledNumbers = [];
+
+        for (let i = 1; i <= 90; i++) {
+            remainingNumbers.push(i);
+
+            if (!customPhrases[i]) {
+                customPhrases[i] = defaults[i] || `Number ${i}`;
+            }
+        }
+
+        renderBoard();
+        renderEditor();
+
+        document.getElementById("currentNumber").textContent = "--";
+        document.getElementById("currentPhrase").textContent = "Press CALL NEXT NUMBER to begin";
+        document.getElementById("count").textContent = "0";
+    }
+
+    function shuffle(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i], array[j]] = [array[j], array[i]];
+        }
+    }
+
+    function callNextNumber() {
+        if (remainingNumbers.length === 0) {
+            alert("All numbers have been called!");
+            return;
+        }
+
+        shuffle(remainingNumbers);
+
+        const number = remainingNumbers.pop();
+        calledNumbers.push(number);
+
+        const phrase = customPhrases[number];
+
+        document.getElementById("currentNumber").textContent = number;
+        document.getElementById("currentPhrase").textContent = phrase;
+        document.getElementById("count").textContent = calledNumbers.length;
+
+        renderBoard();
+        speak(phrase);
+    }
+
+    function renderBoard() {
+        const grid = document.getElementById("calledGrid");
+        grid.innerHTML = "";
+
+        for (let i = 1; i <= 90; i++) {
+            const div = document.createElement("div");
+            div.className = "ball";
+
+            if (calledNumbers.includes(i)) {
+                div.classList.add("called");
+            }
+
+            div.textContent = i;
+            grid.appendChild(div);
+        }
+    }
+
+    function renderEditor() {
+        const editor = document.getElementById("editorGrid");
+        editor.innerHTML = "";
+
+        for (let i = 1; i <= 90; i++) {
+            const item = document.createElement("div");
+            item.className = "editor-item";
+
+            item.innerHTML = `
+                <label>${i}</label>
+                <input 
+                    type="text" 
+                    value="${customPhrases[i]}" 
+                    onchange="updatePhrase(${i}, this.value)"
+                />
+            `;
+
+            editor.appendChild(item);
+        }
+    }
+
+    function updatePhrase(number, value) {
+        customPhrases[number] = value;
+    }
+
+    function speak(text) {
+        speechSynthesis.cancel();
+
+        const utterance = new SpeechSynthesisUtterance(text);
+
+        const selectedVoice = document.getElementById("voiceSelect").value;
+        const voice = voices.find(v => v.name === selectedVoice);
+
+        if (voice) {
+            utterance.voice = voice;
+        }
+
+        utterance.rate = parseFloat(document.getElementById("rate").value);
+
+        speechSynthesis.speak(utterance);
+    }
+
+    function repeatLast() {
+        if (calledNumbers.length === 0) return;
+
+        const last = calledNumbers[calledNumbers.length - 1];
+        speak(customPhrases[last]);
+    }
+
+    function resetGame() {
+        if (confirm("Reset the game?")) {
+            initGame();
+        }
+    }
+
+    function loadVoices() {
+        voices = speechSynthesis.getVoices();
+
+        const select = document.getElementById("voiceSelect");
+        select.innerHTML = "";
+
+        const englishVoices = voices.filter(v =>
+            v.lang.includes("en")
+        );
+
+        englishVoices.forEach(v => {
+            const option = document.createElement("option");
+            option.value = v.name;
+            option.textContent = `${v.name} (${v.lang})`;
+            select.appendChild(option);
+        });
+
+        // Prefer UK voices if available
+        const ukVoice = englishVoices.find(v =>
+            v.lang === "en-GB"
+        );
+
+        if (ukVoice) {
+            select.value = ukVoice.name;
+        }
+    }
+
+    speechSynthesis.onvoiceschanged = loadVoices;
+
+    initGame();
+    loadVoices();
+</script>
+
+</body>
+</html>
